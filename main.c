@@ -4,8 +4,10 @@
 #include <stdlib.h>
 
 #define CLS 64 //cache line size
-#define L1_SIZE 3 * 1024 * 1024 //3 MB
-#define L2_SIZE 80 * 1024 * 1024 //80 MB
+
+// Tamaños en bytes por NÚCLEO
+#define L1_SIZE 49152    // 48 KB
+#define L2_SIZE 1310720  // 1.25 MB
 
 int main(int argc, char *argv[]) {
     
@@ -15,17 +17,19 @@ int main(int argc, char *argv[]) {
     }
 
     int D = atoi(argv[1]);
-    float L = atof(argv[2]);
+    int L = atoi(argv[2]); 
 
-
-    int R = L;
-    if (D < CLS / sizeof(double)) {
-        int R = L1_SIZE / (D * sizeof(double)); //calcular R para que el acceso a A ocupe toda la cache L1   
+    int elementos_por_linea = CLS / sizeof(double); // Esto da 8
+    int R;
+    
+    if (D < elementos_por_linea) {
+        R = L * (elementos_por_linea / D); 
+    } else {
+        R = L;
     }
 
-
-    int S1 = L1_SIZE / CLS; 
-    int S2 = L2_SIZE / CLS; //80 MB  
+    int S1 = L1_SIZE / CLS; // 49152 / 64 = 768 líneas
+    int S2 = L2_SIZE / CLS; // 1310720 / 64 = 20480 líneas
 
     //iniciar vector indices
     int * indices = (int *)malloc(R * sizeof(int));    
@@ -58,12 +62,22 @@ int main(int argc, char *argv[]) {
     srand(time(0));
 
     // Solo inicializamos lo que vamos a tocar para ganar tiempo en D grandes
-    // Ojo: Si quieres ser estricto, inicializa todo el vector, pero tardará mucho con D grande.
     for(int i = 0; i < R; i++) {
-        A[indices[i]] = (double)rand() / RAND_MAX * 100.0;
+        // Genera un valor entre 1.0 y 2.0
+        double val = 1.0 + ((double)rand() / RAND_MAX);
+        // Aleatoriamente lo hace positivo o negativo
+        if (rand() % 2 == 0) {
+            val = -val;
+        }
+        A[indices[i]] = val;
     }
 
     double S[10] = {0};
+
+    double basura = 0.0;
+    for(int j = 0; j < R; j++) {
+        basura += A[indices[j]];
+    }
 
     start_counter(); 
 
@@ -82,6 +96,13 @@ int main(int argc, char *argv[]) {
     double ciclos_acceso = (double) get_counter() / (R*10);
     
     printf("%d\t%d\t%.4f\n", D, L, ciclos_acceso);
+
+    // Imprimir S para evitar optimizaciones indeseadas del compilador
+    printf("Resultados S: ");
+    for(int i = 0; i < 10; i++) {
+        printf("%.2f ", S[i]);
+    }
+    printf("\n");
 
     free(A);
     free(indices);
